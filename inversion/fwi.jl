@@ -29,7 +29,7 @@ seabed = 2000  # [m]
 
 ############# INITIAL PARAMS #############
 # water velocity, km/s
-global vair = 3.6   # 0.33
+global vair = 3.6   # 0.33 or must be equal to vwater
 global vwater = 3.6
 
 # water density, g/cm^3
@@ -102,13 +102,13 @@ z = (o[3]:d[3]:o[3]+(n[3]-1)*d[3])./1000f0
 global air_ind = Int.(round.(abs(o[end])./d[end]))+1
 global seabed_ind = air_ind + Int.(round.(seabed./d[end]))+1
 if modeling_type == "slowness"
-    model0.m[:,1:air_ind] .= (1/vair)^2
-    model0.m[:,air_ind:seabed_ind] .= (1/vwater)^2
+    model0.m[:,:,1:air_ind] .= (1/vair)^2
+    model0.m[:,:,air_ind:seabed_ind] .= (1/vwater)^2
 elseif modeling_type == "bulk"
-    model0.m[:,1:air_ind] .= (1/vair)^2
-    model0.m[:,air_ind:seabed_ind] .= (1/vwater)^2
-    model0.rho[:,1:air_ind] .= rhoair
-    model0.rho[:,air_ind:seabed_ind] .= rhowater
+    model0.m[:,:,1:air_ind] .= (1/vair)^2
+    model0.m[:,:,air_ind:seabed_ind] .= (1/vwater)^2
+    model0.rho[:,:,1:air_ind] .= rhoair
+    model0.rho[:,:,air_ind:seabed_ind] .= rhowater
 end
 
 # Set up wavelet and source vector
