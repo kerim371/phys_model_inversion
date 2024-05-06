@@ -87,7 +87,7 @@ elseif modeling_type == "bulk"
 end
 
 # ============ SMOOTH STARTING MODEL ============
-model0.m.data = imfilter(Float32, model0.m.data, Kernel.gaussian((5,5,5)))
+imfilter!(Float32, model0.m.data, Kernel.gaussian((5,5,5)))
 # ============ SMOOTH STARTING MODEL ============
 
 @info "modeling_type: $modeling_type"

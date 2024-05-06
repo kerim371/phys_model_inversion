@@ -7,9 +7,13 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
     d = (x[2]-x[1],y[2]-y[1],z[2]-z[1])
     isnothing(clim) && (clim = (minimum(data),maximum(data)))
 
-    xy_slice = 250
-    xz_slice = 800
-    yz_slice = 800
+    x_coord = 10000
+    y_coord = 13000
+    z_coord = 2500
+
+    xy_slice = round(Int32, (z_coord-o[3])/d[3])
+    xz_slice = round(Int32, (y_coord-o[2])/d[2])
+    yz_slice = round(Int32, (x_coord-o[1])/d[1])
 
     plt = Plots.heatmap(x, y, data[:,:,xy_slice], c=colormap, 
         xlims=(x[1],x[end]), 
