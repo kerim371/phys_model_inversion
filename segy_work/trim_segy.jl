@@ -4,6 +4,11 @@ prestk_dir = "/home/data-volume/phys_model/"
 prestk_file = "009_3D_georeshetka_float_fixed_scale.sgy"
 dt = 2.5                # ms
 ns = 1081               # limit number of samples
+src_depth = 10          # edit depth to be able to use free_surface
+rec_depth = 10          # edit depth to be able to use free_surface
+segy_depth_key_src = "SourceSurfaceElevation"
+segy_depth_key_rec = "RecGroupElevation"
+
 dir_out = "$(@__DIR__)/../data/trim_segy/"
 
 container = segy_scan(prestk_dir, prestk_file, ["SourceX", "SourceY", "GroupX", "GroupY", "RecGroupElevation", "SourceSurfaceElevation", "dt"])
@@ -26,6 +31,9 @@ for i in 1:I
   set_header!(block_out, "ns", ns)
   # make elevation scalar multiplier to be 1 instead of 0 (0 -> sets all elevations to NAN)
   set_header!(block_out, "ElevationScalar", Int16(1))
+  # edit depth to be able to use free_surface
+  set_header!(block_out, "SourceSurfaceElevation", Int(src_depth))
+  set_header!(block_out, "RecGroupElevation", Int(rec_depth))
   segy_write(dir_out * "shot_$i.sgy", block_out)
   if round(i/I*100f0) > progress
     global progress = round(i/I*100f0)

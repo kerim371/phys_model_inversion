@@ -7,15 +7,15 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
     d = (x[2]-x[1],y[2]-y[1],z[2]-z[1])
     isnothing(clim) && (clim = (minimum(data),maximum(data)))
 
-    x_coord = 10000
-    y_coord = 13000
-    z_coord = 2500
+    x_coord = 10
+    y_coord = 13
+    z_coord = 2.5
 
     xy_slice = round(Int32, (z_coord-o[3])/d[3])
     xz_slice = round(Int32, (y_coord-o[2])/d[2])
     yz_slice = round(Int32, (x_coord-o[1])/d[1])
 
-    plt = Plots.heatmap(x, y, data[:,:,xy_slice], c=colormap, 
+    plt = Plots.heatmap(x, y, transpose(data[:,:,xy_slice]), c=colormap, 
         xlims=(x[1],x[end]), 
         ylims=(y[1],y[end]), yflip=true,
         title=title * " $(xy_slice) slice",
@@ -25,7 +25,7 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
         dpi=600)
     Plots.savefig(plt, pltfile * "_xy.png")
 
-    plt = Plots.heatmap(x, z, data[:,xz_slice,:], c=colormap, 
+    plt = Plots.heatmap(x, z, transpose(data[:,xz_slice,:]), c=colormap, 
         xlims=(x[1],x[end]), 
         ylims=(z[1],z[end]), yflip=true,
         title=title * " $(xz_slice) slice",
@@ -35,7 +35,7 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
         dpi=600)
     Plots.savefig(plt, pltfile * "_xz.png")
 
-    plt = Plots.heatmap(y, z, data[yz_slice,:,:], c=colormap, 
+    plt = Plots.heatmap(y, z, transpose(data[yz_slice,:,:]), c=colormap, 
         xlims=(y[1],y[end]), 
         ylims=(z[1],z[end]), yflip=true,
         title=title * " $(yz_slice) slice",
@@ -43,19 +43,19 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
         xlabel="Lateral position Y [km]",
         ylabel="Depth [km]",
         dpi=600)
-    Plots.savefig(plt, pltfile * "_xz.png")
+    Plots.savefig(plt, pltfile * "_yz.png")
 
-  fid = h5open(h5file, h5openflag)
-  (haskey(fid, h5varname)) && (delete_object(fid, h5varname))
-  (haskey(fid, "o")) && (delete_object(fid, "o"))
-  (haskey(fid, "n")) && (delete_object(fid, "n"))
-  (haskey(fid, "d")) && (delete_object(fid, "d"))
-  write(fid, 
-      h5varname, Matrix(adjoint(data)), # convert adjoint(Matrix) type to Matrix
-      "o", collect(o.*1000f0), 
-      "n", collect(n), 
-      "d", collect(d.*1000f0))
-  close(fid)
+    fid = h5open(h5file, h5openflag)
+    (haskey(fid, h5varname)) && (delete_object(fid, h5varname))
+    (haskey(fid, "o")) && (delete_object(fid, "o"))
+    (haskey(fid, "n")) && (delete_object(fid, "n"))
+    (haskey(fid, "d")) && (delete_object(fid, "d"))
+    write(fid, 
+        h5varname, permutedims(data, (3,2,1)),
+        "o", collect(o.*1000f0), 
+        "n", collect(n), 
+        "d", collect(d.*1000f0))
+    close(fid)
 end
 
 function save_data_as_segy(x,z,data)

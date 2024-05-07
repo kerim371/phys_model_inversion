@@ -25,7 +25,7 @@ inverse_phase = false
 segy_depth_key_src = "SourceSurfaceElevation"
 segy_depth_key_rec = "RecGroupElevation"
 
-seabed = 2000  # [m]
+seabed = 1000  # [m]
 
 ############# INITIAL PARAMS #############
 # water velocity, km/s
@@ -158,15 +158,15 @@ global jopt = JUDI.Options(
     limit_m = true,
     buffer_size = buffer_size,
     optimal_checkpointing=false,
-    subsampling_factor=50,
-    free_surface=false,  # free_surface is ON to model multiples as well
+    subsampling_factor=4,
+    free_surface=true,  # free_surface is ON to model multiples as well
     space_order=16)     # increase space order for > 12 Hz source wavelet
 
 # optimization parameters
 niterations = 10
 shot_from = 1
 shot_to = length(d_obs)
-shot_step = 100   # we may want to calculate only each Nth shot to economy time
+shot_step = 1000   # we may want to calculate only each Nth shot to economy time
 count = 0
 fhistory = Vector{Float32}(undef, 0)
 mute_reflections = false
@@ -203,12 +203,19 @@ function nlopt_obj_fun!(m_update, grad)
     @info "mute_reflections: $mute_reflections"
     @info "mute_turning: $mute_turning"
 
+    m_update = reshape(m_update, size(model0))
+
+    ind = m_update .< mminArr
+    m_update[ind] .= mminArr[ind]
+    ind = m_update .> mmaxArr
+    m_update[ind] .= mmaxArr[ind]
+
     # Update model
-    model0.m .= Float32.(reshape(m_update, size(model0)))
+    model0.m .= Float32.(m_update)
     if modeling_type == "bulk"
         model0.rho .= Float32.(reshape(rho_from_slowness(model0.m), size(model0)))
-        model0.rho[:,:,1:air_ind] .= rhoair
-        model0.rho[:,:,air_ind:seabed_ind] .= rhowater
+        # model0.rho[:,:,1:air_ind] .= rhoair
+        # model0.rho[:,:,air_ind:seabed_ind] .= rhowater
     end
 
     # Select batch and calculate gradient
@@ -228,6 +235,7 @@ function nlopt_obj_fun!(m_update, grad)
         fval = .5*norm(r)^2
     else
         fval, gradient = fwi_objective(model0, Mr_freq[indsrc]*q[indsrc], Ml_freq[indsrc]*d_obs[indsrc], options=jopt, misfit=myloss)
+        # fval, gradient = fwi_objective(model0, Mr_freq[indsrc]*q[indsrc], Ml_freq[indsrc]*d_obs[indsrc], options=jopt)
     end
     gradient = reshape(gradient, size(model0))
     # normalize gradient with depth
@@ -280,3 +288,4 @@ min_objective!(opt, nlopt_obj_fun!)
 lower_bounds!(opt, vec(mminArr)); upper_bounds!(opt, vec(mmaxArr))
 maxeval!(opt, niterations)
 (minf, minx, ret) = optimize(opt, copy(model0.m.data[:]))
+# (minf, minx, ret) = optimize(opt, vec(model0.m.data))
