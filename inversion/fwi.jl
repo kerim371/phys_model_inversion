@@ -29,15 +29,15 @@ seabed = 2000  # [m]
 
 ############# INITIAL PARAMS #############
 # water velocity, km/s
-global vair = 3.6   # 0.33 or must be equal to vwater
-global vwater = 3.6
+global vwater = 3.75
+global vair = vwater   # 0.33 or must be equal to vwater
 
 # water density, g/cm^3
-global rhoair = 1.02    # 0.001
 global rhowater = 1.02
+global rhoair = rhowater    # 0.001
 
 # JUDI options
-buffer_size = 100f0    # limit model (meters) even if 0 buffer makes reflections from borders that does't hurt much the FWI result
+buffer_size = 0f0    # limit model (meters) even if 0 buffer makes reflections from borders that does't hurt much the FWI result
 
 # prepare folder for output data
 mkpath(dir_out)
@@ -78,16 +78,16 @@ o = Tuple(Float32(i) for i in o)
 # d = Tuple(Float32(i/dense_factor) for i in d)
 
 # ============ MAKE STARTING MODEL DENSER ============
-
+nb = 20
 if modeling_type == "slowness"
-    model0 = Model(n, d, o, m0)
+    model0 = Model(n, d, o, m0, nb=nb)
 elseif modeling_type == "bulk"
     rho0 = rho_from_slowness(m0)
-    model0 = Model(n, d, o, m0, rho=rho0)
+    model0 = Model(n, d, o, m0, rho=rho0, nb=nb)
 end
 
 # ============ SMOOTH STARTING MODEL ============
-model0.m.data = imfilter(Float32, model0.m.data, Kernel.gaussian((5,5,5)))
+model0.m.data = imfilter(Float32, model0.m.data, Kernel.gaussian((10,10,10)))
 # ============ SMOOTH STARTING MODEL ============
 
 @info "modeling_type: $modeling_type"

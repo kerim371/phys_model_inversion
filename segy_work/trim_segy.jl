@@ -1,9 +1,9 @@
 using SegyIO, Plots
 
 prestk_dir = "/home/data-volume/phys_model/"
-prestk_file = "009_3D_georeshetka_float.sgy"
+prestk_file = "009_3D_georeshetka_float_fixed_scale.sgy"
 dt = 2.5                # ms
-ns = 1601               # limit number of samples
+ns = 1081               # limit number of samples
 dir_out = "$(@__DIR__)/../data/trim_segy/"
 
 container = segy_scan(prestk_dir, prestk_file, ["SourceX", "SourceY", "GroupX", "GroupY", "RecGroupElevation", "SourceSurfaceElevation", "dt"])
@@ -24,10 +24,11 @@ for i in 1:I
   block_out.fileheader.bfh.ns = ns
   set_header!(block_out, "dt", Int(round(dt*1000f0)))
   set_header!(block_out, "ns", ns)
+  # make elevation scalar multiplier to be 1 instead of 0 (0 -> sets all elevations to NAN)
+  set_header!(block_out, "ElevationScalar", Int16(1))
   segy_write(dir_out * "shot_$i.sgy", block_out)
   if round(i/I*100f0) > progress
     global progress = round(i/I*100f0)
     @info "progress: ($progress)%"
   end
 end
-
