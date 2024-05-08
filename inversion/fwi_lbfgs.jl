@@ -3,6 +3,8 @@ using JUDI, SlimOptim, NLopt, HDF5, SegyIO, Plots, ImageFiltering
 using SetIntersectionProjection
 @everywhere using JUDI.FFTW, Zygote, Flux
 
+cd(@__DIR__)
+
 include("../utils.jl")
 
 ############# INITIAL DATA #############

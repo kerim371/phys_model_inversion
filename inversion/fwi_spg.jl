@@ -3,6 +3,8 @@ using JUDI, SlimOptim, NLopt, HDF5, SegyIO, Plots, ImageFiltering
 using SetIntersectionProjection
 @everywhere using JUDI.FFTW, Zygote, Flux
 
+cd(@__DIR__)
+
 include("../utils.jl")
 
 ############# INITIAL DATA #############
@@ -25,7 +27,7 @@ inverse_phase = false
 segy_depth_key_src = "SourceSurfaceElevation"
 segy_depth_key_rec = "RecGroupElevation"
 
-seabed = 1000  # [m]
+seabed = 300  # [m]
 
 ############# INITIAL PARAMS #############
 # water velocity, km/s
@@ -37,7 +39,7 @@ global rhowater = 1.02
 global rhoair = rhowater    # 0.001
 
 # JUDI options
-buffer_size = 0f0    # limit model (meters) even if 0 buffer makes reflections from borders that does't hurt much the FWI result
+buffer_size = 1000f0    # limit model (meters) even if 0 buffer makes reflections from borders that does't hurt much the FWI result
 
 # prepare folder for output data
 mkpath(dir_out)
@@ -199,8 +201,8 @@ J = judiJacobian(F(model0), Mr_freq*q)
 
 
 # Optimization parameters
-batchsize = 200
-# batchsize = d_obs.nsrc
+# batchsize = 200
+batchsize = d_obs.nsrc
 
 # NLopt objective function
 function objective_function(m_update)
