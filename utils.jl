@@ -51,7 +51,7 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
     (haskey(fid, "n")) && (delete_object(fid, "n"))
     (haskey(fid, "d")) && (delete_object(fid, "d"))
     write(fid, 
-        h5varname, permutedims(data, (3,2,1)),
+        h5varname, data,
         "o", collect(o.*1000f0), 
         "n", collect(n), 
         "d", collect(d.*1000f0))
