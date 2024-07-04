@@ -1,11 +1,28 @@
-using Statistics, Random, LinearAlgebra, Interpolations, DelimitedFiles, Distributed
-using JUDI, SlimOptim, NLopt, HDF5, SegyIO, Plots, ImageFiltering
-using SetIntersectionProjection
+dir_logs = "/home/kerim/shared/logs"
+mkpath(dir_logs)
+cd(dir_logs)
+
+using Distributed, ClusterManagers
+
+include("$(@__DIR__)/../utils.jl")
+
+# addprocs(["kerim@10.128.0.28",
+#           "kerim@10.128.0.32",
+#           "kerim@10.128.0.13",
+#           "kerim@10.128.0.17",
+#           "kerim@10.128.0.20"], 
+#           env=["DEVITO_LANGUAGE"=>"openmp", "OMP_NUM_THREADS"=>"8", "DEVITO_LOGGING"=>"INFO"])
+
+addprocs(["kerim@10.128.0.32",
+          "kerim@10.128.0.13",
+          "kerim@10.128.0.17",
+          "kerim@10.128.0.20"], 
+          env=["DEVITO_LANGUAGE"=>"openmp", "OMP_NUM_THREADS"=>"8", "DEVITO_LOGGING"=>"INFO"])
+
+@everywhere using Statistics, Random, LinearAlgebra, Interpolations, DelimitedFiles, Distributed
+@everywhere using JUDI, SlimOptim, NLopt, HDF5, SegyIO, Plots, ImageFiltering
+@everywhere using SetIntersectionProjection
 @everywhere using JUDI.FFTW, Zygote, Flux
-
-cd(@__DIR__)
-
-include("../utils.jl")
 
 ############# INITIAL DATA #############
 modeling_type = "bulk"    # slowness, bulk
@@ -15,7 +32,7 @@ prestk_dir = "$(@__DIR__)/../data/trim_segy/"
 prestk_file = "shot"
 dir_out = "$(@__DIR__)/../data/fwi_spg_$(modeling_type)/$(frq)Hz/"
 
-model_file = "$(@__DIR__)/../data/init_model.h5"
+model_file = "$(@__DIR__)/../data/model_5hz.h5"
 model_file_out = "model"
 
 # use original wavelet file 
@@ -39,7 +56,7 @@ global rhowater = 1.02
 global rhoair = rhowater    # 0.001
 
 # JUDI options
-buffer_size = 1000f0    # limit model (meters) even if 0 buffer makes reflections from borders that does't hurt much the FWI result
+buffer_size = 500f0    # limit model (meters) even if 0 buffer makes reflections from borders that does't hurt much the FWI result
 
 # prepare folder for output data
 mkpath(dir_out)
@@ -61,6 +78,13 @@ max_x = maximum([max_src_x, max_grp_x])
 fid = h5open(model_file, "r")
 n, d, o = read(fid, "n", "d", "o")
 m0 = Float32.(read(fid, "m"))
+
+
+
+m0 = permutedims(m0, [3, 2, 1])
+
+
+
 close(fid)
 
 n = Tuple(Int64(i) for i in n)
@@ -68,14 +92,15 @@ d = Tuple(Float32(i) for i in d)
 o = Tuple(Float32(i) for i in o)
 
 # # ============ MAKE STARTING MODEL DENSER ============
-# # dense_factor = 1.5625                # make model n-times denser to achieve better stability
-# dense_factor = 1f0
+# dense_factor = 1.5625                # make model n-times denser to achieve better stability
+# # dense_factor = 2f0
 
-# i_dense = 1:1/Float32(dense_factor):size(m0)[1]
-# j_dense = 1:1/Float32(dense_factor):size(m0)[2]
+# i_dense = 1f0:1f0/Float32(dense_factor):size(m0)[1]
+# j_dense = 1f0:1f0/Float32(dense_factor):size(m0)[2]
+# k_dense = 1f0:1f0/Float32(dense_factor):size(m0)[3]
 
 # m0_itp = interpolate(m0, BSpline(Linear()))
-# m0 = m0_itp(i_dense, j_dense)
+# m0 = m0_itp(i_dense, j_dense, k_dense)
 # n = size(m0)
 # d = Tuple(Float32(i/dense_factor) for i in d)
 
@@ -88,8 +113,12 @@ elseif modeling_type == "bulk"
     model0 = Model(n, d, o, m0, rho=rho0, nb=nb)
 end
 
+@info "size(m0): $(size(m0))"
+@info "size(rho0): $(size(rho0))"
+
 # ============ SMOOTH STARTING MODEL ============
-model0.m.data = imfilter(Float32, model0.m.data, Kernel.gaussian((10,10,10)))
+# model0.m.data = imfilter(Float32, model0.m.data, Kernel.gaussian((10,10,10)))
+model0.m.data = imfilter(Float32, model0.m.data, Kernel.gaussian((3,3,3)))
 # ============ SMOOTH STARTING MODEL ============
 
 @info "modeling_type: $modeling_type"
@@ -102,15 +131,17 @@ y = (o[2]:d[2]:o[2]+(n[2]-1)*d[2])./1000f0
 z = (o[3]:d[3]:o[3]+(n[3]-1)*d[3])./1000f0
 
 global air_ind = Int.(round.(abs(o[end])./d[end]))+1
-global seabed_ind = air_ind + Int.(round.(seabed./d[end]))+1
+global seabed_ind = air_ind + Int.(round.(seabed./d[end]))
+@info "air_ind: $(air_ind)"
+@info "seabed_ind: $(seabed_ind)"
 if modeling_type == "slowness"
-    model0.m[:,:,1:air_ind] .= (1/vair)^2
-    model0.m[:,:,air_ind:seabed_ind] .= (1/vwater)^2
+    model0.m.data[:,:,1:air_ind] .= (1/vair)^2
+    model0.m.data[:,:,air_ind:seabed_ind] .= (1/vwater)^2
 elseif modeling_type == "bulk"
-    model0.m[:,:,1:air_ind] .= (1/vair)^2
-    model0.m[:,:,air_ind:seabed_ind] .= (1/vwater)^2
-    model0.rho[:,:,1:air_ind] .= rhoair
-    model0.rho[:,:,air_ind:seabed_ind] .= rhowater
+    model0.m.data[:,:,1:air_ind] .= (1/vair)^2
+    model0.m.data[:,:,air_ind:seabed_ind] .= (1/vwater)^2
+    model0.rho.data[:,:,1:air_ind] .= rhoair
+    model0.rho.data[:,:,air_ind:seabed_ind] .= rhowater
 end
 
 # Set up wavelet and source vector
@@ -160,7 +191,7 @@ global jopt = JUDI.Options(
     limit_m = true,
     buffer_size = buffer_size,
     optimal_checkpointing=false,
-    subsampling_factor=4,
+    subsampling_factor=2,
     free_surface=true,  # free_surface is ON to model multiples as well
     space_order=16)     # increase space order for > 12 Hz source wavelet
 
@@ -202,10 +233,11 @@ J = judiJacobian(F(model0), Mr_freq*q)
 
 # Optimization parameters
 # batchsize = 200
-batchsize = d_obs.nsrc
+# batchsize = d_obs.nsrc
+batchsize = 4
 
 # NLopt objective function
-function objective_function(m_update)
+@everywhere function objective_function(m_update)
 
     global x, y, z, count, jopt, air_ind, seabed_ind;
     count += 1
@@ -221,15 +253,15 @@ function objective_function(m_update)
     m_update[ind] .= mmaxArr[ind]
 
     # Update model
-    model0.m .= Float32.(m_update)
+    model0.m.data .= Float32.(m_update)
     if modeling_type == "bulk"
-        model0.rho .= Float32.(reshape(rho_from_slowness(model0.m), size(model0)))
-        # model0.rho[:,:,1:air_ind] .= rhoair
-        # model0.rho[:,:,air_ind:seabed_ind] .= rhowater
+        model0.rho.data .= Float32.(reshape(rho_from_slowness(model0.m), size(model0)))
+        # model0.rho.data[:,:,1:air_ind] .= rhoair
+        # model0.rho.data[:,:,air_ind:seabed_ind] .= rhowater
     end
 
     # Select batch and calculate gradient
-    # Subsampling the number of sources should in practice never be used for second order methods such as L-BFGS.
+    # Subsampling the number of sources should in practice never be used for second order methods such as SPG.
     # get_data(d_obs) is a temporal solution as Ml_freq doesn't work yet with SeisCon
     global indsrc = randperm(d_obs.nsrc)[1:batchsize]
     # global indsrc = 500
@@ -256,23 +288,23 @@ function objective_function(m_update)
     push!(fhistory, fval)
 
     println("iteration: ", count, "\tfval: ", fval, "\tnorm: ", norm(gradient))
-    save_data(x,y,z,reshape(model0.m.data,size(model0)); 
+    save_data(x,y,z,permutedims(reshape(model0.m.data,size(model0)), [3,2,1]); 
             pltfile=dir_out * "FWI slowness $count",
-            title="FWI slowness^2 with L-BFGS $modeling_type: $(frq*1000)Hz, iter $count",
+            title="FWI slowness^2 with SPG $modeling_type: $(frq*1000)Hz, iter $count",
             colormap=cgrad(:Spectral, rev=true),
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",
             h5openflag="w",
             h5varname="m")
-    save_data(x,y,z,sqrt.(1f0 ./ reshape(model0.m.data,size(model0))); 
+    save_data(x,y,z,permutedims(sqrt.(1f0 ./ reshape(model0.m.data,size(model0))), [3,2,1]); 
             pltfile=dir_out * "FWI $count",
-            title="FWI velocity with L-BFGS $modeling_type: $(frq*1000)Hz, iter $count",
+            title="FWI velocity with SPG $modeling_type: $(frq*1000)Hz, iter $count",
             colormap=cgrad(:Spectral, rev=true),
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",
             h5openflag="r+",
             h5varname="v")
-    save_data(x,y,z,reshape(gradient.data,size(model0)); 
+    save_data(x,y,z,permutedims(reshape(gradient.data,size(model0)), [3,2,1]); 
             pltfile=dir_out * "Gradient $count",
-            title="FWI gradient with L-BFGS $modeling_type: $(frq*1000)Hz, iter $count",
+            title="FWI gradient with SPG $modeling_type: $(frq*1000)Hz, iter $count",
             clim=(-maximum(gradient.data)/5f0, maximum(gradient.data)/5f0),
             colormap=:bluesreds,
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",

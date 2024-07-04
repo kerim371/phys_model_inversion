@@ -15,7 +15,14 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
     xz_slice = round(Int32, (y_coord-o[2])/d[2])
     yz_slice = round(Int32, (x_coord-o[1])/d[1])
 
-    plt = Plots.heatmap(x, y, transpose(data[:,:,xy_slice]), c=colormap, 
+    @info "length(x): $(length(x))"
+    @info "length(y): $(length(y))"
+    @info "length(z): $(length(z))"
+    @info "size(data): $(size(data))"
+    @info "size(data[xy_slice,:,:]): $(size(data[xy_slice,:,:]))"
+    @info "size(data[:,xz_slice,:]): $(size(data[:,xz_slice,:]))"
+    @info "size(data[:,:,yz_slice]): $(size(data[:,:,yz_slice]))"
+    plt = Plots.heatmap(x, y, data[xy_slice,:,:], c=colormap, 
         xlims=(x[1],x[end]), 
         ylims=(y[1],y[end]), yflip=true,
         title=title * " $(xy_slice) slice",
@@ -25,7 +32,7 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
         dpi=600)
     Plots.savefig(plt, pltfile * "_xy.png")
 
-    plt = Plots.heatmap(x, z, transpose(data[:,xz_slice,:]), c=colormap, 
+    plt = Plots.heatmap(x, z, data[:,xz_slice,:], c=colormap, 
         xlims=(x[1],x[end]), 
         ylims=(z[1],z[end]), yflip=true,
         title=title * " $(xz_slice) slice",
@@ -35,7 +42,7 @@ function save_data(x,y,z,data; pltfile,title,colormap,clim=nothing,h5file,h5open
         dpi=600)
     Plots.savefig(plt, pltfile * "_xz.png")
 
-    plt = Plots.heatmap(y, z, transpose(data[yz_slice,:,:]), c=colormap, 
+    plt = Plots.heatmap(y, z, transpose(data[:,:,yz_slice]), c=colormap, 
         xlims=(y[1],y[end]), 
         ylims=(z[1],z[end]), yflip=true,
         title=title * " $(yz_slice) slice",

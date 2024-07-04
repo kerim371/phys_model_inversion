@@ -2,7 +2,7 @@ using SegyIO, Plots
 
 cd(@__DIR__)
 
-prestk_dir = "/home/data-volume/phys_model/"
+prestk_dir = "/home/kerim/shared/phys_model_inversion/data/sgy/"
 prestk_file = "009_3D_georeshetka_float_fixed_scale.sgy"
 dt = 2.5                # ms
 ns = 1081               # limit number of samples
