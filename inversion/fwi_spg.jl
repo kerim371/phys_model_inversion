@@ -13,11 +13,11 @@ include("$(@__DIR__)/../utils.jl")
 #           "kerim@10.128.0.20"], 
 #           env=["DEVITO_LANGUAGE"=>"openmp", "OMP_NUM_THREADS"=>"8", "DEVITO_LOGGING"=>"INFO"])
 
-addprocs(["kerim@10.128.0.32",
-          "kerim@10.128.0.13",
-          "kerim@10.128.0.17",
-          "kerim@10.128.0.20"], 
-          env=["DEVITO_LANGUAGE"=>"openmp", "OMP_NUM_THREADS"=>"8", "DEVITO_LOGGING"=>"INFO"])
+# addprocs(["kerim@10.128.0.32",
+#           "kerim@10.128.0.13",
+#           "kerim@10.128.0.17",
+#           "kerim@10.128.0.20"], 
+#           env=["DEVITO_LANGUAGE"=>"openmp", "OMP_NUM_THREADS"=>"8", "DEVITO_LOGGING"=>"INFO"])
 
 @everywhere using Statistics, Random, LinearAlgebra, Interpolations, DelimitedFiles, Distributed
 @everywhere using JUDI, SlimOptim, NLopt, HDF5, SegyIO, Plots, ImageFiltering
@@ -91,18 +91,18 @@ n = Tuple(Int64(i) for i in n)
 d = Tuple(Float32(i) for i in d)
 o = Tuple(Float32(i) for i in o)
 
-# # ============ MAKE STARTING MODEL DENSER ============
-# dense_factor = 1.5625                # make model n-times denser to achieve better stability
-# # dense_factor = 2f0
+# ============ MAKE STARTING MODEL DENSER ============
+dense_factor = 1.5625                # make model n-times denser to achieve better stability
+# dense_factor = 2f0
 
-# i_dense = 1f0:1f0/Float32(dense_factor):size(m0)[1]
-# j_dense = 1f0:1f0/Float32(dense_factor):size(m0)[2]
-# k_dense = 1f0:1f0/Float32(dense_factor):size(m0)[3]
+i_dense = 1f0:1f0/Float32(dense_factor):size(m0)[1]
+j_dense = 1f0:1f0/Float32(dense_factor):size(m0)[2]
+k_dense = 1f0:1f0/Float32(dense_factor):size(m0)[3]
 
-# m0_itp = interpolate(m0, BSpline(Linear()))
-# m0 = m0_itp(i_dense, j_dense, k_dense)
-# n = size(m0)
-# d = Tuple(Float32(i/dense_factor) for i in d)
+m0_itp = interpolate(m0, BSpline(Linear()))
+m0 = m0_itp(i_dense, j_dense, k_dense)
+n = size(m0)
+d = Tuple(Float32(i/dense_factor) for i in d)
 
 # ============ MAKE STARTING MODEL DENSER ============
 nb = 20
@@ -135,13 +135,13 @@ global seabed_ind = air_ind + Int.(round.(seabed./d[end]))
 @info "air_ind: $(air_ind)"
 @info "seabed_ind: $(seabed_ind)"
 if modeling_type == "slowness"
-    model0.m.data[:,:,1:air_ind] .= (1/vair)^2
-    model0.m.data[:,:,air_ind:seabed_ind] .= (1/vwater)^2
+    model0.m[:,:,1:air_ind] .= (1/vair)^2
+    model0.m[:,:,air_ind:seabed_ind] .= (1/vwater)^2
 elseif modeling_type == "bulk"
-    model0.m.data[:,:,1:air_ind] .= (1/vair)^2
-    model0.m.data[:,:,air_ind:seabed_ind] .= (1/vwater)^2
-    model0.rho.data[:,:,1:air_ind] .= rhoair
-    model0.rho.data[:,:,air_ind:seabed_ind] .= rhowater
+    model0.m[:,:,1:air_ind] .= (1/vair)^2
+    model0.m[:,:,air_ind:seabed_ind] .= (1/vwater)^2
+    model0.rho[:,:,1:air_ind] .= rhoair
+    model0.rho[:,:,air_ind:seabed_ind] .= rhowater
 end
 
 # Set up wavelet and source vector
@@ -191,7 +191,7 @@ global jopt = JUDI.Options(
     limit_m = true,
     buffer_size = buffer_size,
     optimal_checkpointing=false,
-    subsampling_factor=2,
+    # subsampling_factor=2,
     free_surface=true,  # free_surface is ON to model multiples as well
     space_order=16)     # increase space order for > 12 Hz source wavelet
 
@@ -234,7 +234,7 @@ J = judiJacobian(F(model0), Mr_freq*q)
 # Optimization parameters
 # batchsize = 200
 # batchsize = d_obs.nsrc
-batchsize = 4
+batchsize = 1
 
 # NLopt objective function
 @everywhere function objective_function(m_update)
@@ -253,11 +253,11 @@ batchsize = 4
     m_update[ind] .= mmaxArr[ind]
 
     # Update model
-    model0.m.data .= Float32.(m_update)
+    model0.m .= Float32.(m_update)
     if modeling_type == "bulk"
-        model0.rho.data .= Float32.(reshape(rho_from_slowness(model0.m), size(model0)))
-        # model0.rho.data[:,:,1:air_ind] .= rhoair
-        # model0.rho.data[:,:,air_ind:seabed_ind] .= rhowater
+        model0.rho .= Float32.(reshape(rho_from_slowness(model0.m), size(model0)))
+        # model0.rho[:,:,1:air_ind] .= rhoair
+        # model0.rho[:,:,air_ind:seabed_ind] .= rhowater
     end
 
     # Select batch and calculate gradient
@@ -288,21 +288,21 @@ batchsize = 4
     push!(fhistory, fval)
 
     println("iteration: ", count, "\tfval: ", fval, "\tnorm: ", norm(gradient))
-    save_data(x,y,z,permutedims(reshape(model0.m.data,size(model0)), [3,2,1]); 
+    save_data(x,y,z,reshape(model0.m.data,size(model0)); 
             pltfile=dir_out * "FWI slowness $count",
             title="FWI slowness^2 with SPG $modeling_type: $(frq*1000)Hz, iter $count",
             colormap=cgrad(:Spectral, rev=true),
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",
             h5openflag="w",
             h5varname="m")
-    save_data(x,y,z,permutedims(sqrt.(1f0 ./ reshape(model0.m.data,size(model0))), [3,2,1]); 
+    save_data(x,y,z,sqrt.(1f0 ./ reshape(model0.m.data,size(model0))); 
             pltfile=dir_out * "FWI $count",
             title="FWI velocity with SPG $modeling_type: $(frq*1000)Hz, iter $count",
             colormap=cgrad(:Spectral, rev=true),
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",
             h5openflag="r+",
             h5varname="v")
-    save_data(x,y,z,permutedims(reshape(gradient.data,size(model0)), [3,2,1]); 
+    save_data(x,y,z,reshape(gradient.data,size(model0)); 
             pltfile=dir_out * "Gradient $count",
             title="FWI gradient with SPG $modeling_type: $(frq*1000)Hz, iter $count",
             clim=(-maximum(gradient.data)/5f0, maximum(gradient.data)/5f0),

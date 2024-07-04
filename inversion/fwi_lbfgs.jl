@@ -191,7 +191,7 @@ global jopt = JUDI.Options(
     limit_m = true,
     buffer_size = buffer_size,
     optimal_checkpointing=false,
-    subsampling_factor=2,
+    # subsampling_factor=2,
     free_surface=true,  # free_surface is ON to model multiples as well
     space_order=16)     # increase space order for > 12 Hz source wavelet
 
@@ -286,21 +286,21 @@ J = judiJacobian(F(model0), Mr_freq*q)
     push!(fhistory, fval)
 
     println("iteration: ", count, "\tfval: ", fval, "\tnorm: ", norm(gradient))
-    save_data(x,y,z,permutedims(reshape(model0.m.data,size(model0)), [3,2,1]); 
+    save_data(x,y,z,reshape(model0.m.data,size(model0)); 
             pltfile=dir_out * "FWI slowness $count",
             title="FWI slowness^2 with L-BFGS $modeling_type: $(frq*1000)Hz, iter $count",
             colormap=cgrad(:Spectral, rev=true),
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",
             h5openflag="w",
             h5varname="m")
-    save_data(x,y,z,permutedims(sqrt.(1f0 ./ reshape(model0.m.data,size(model0))), [3,2,1]); 
+    save_data(x,y,z,sqrt.(1f0 ./ reshape(model0.m.data,size(model0))); 
             pltfile=dir_out * "FWI $count",
             title="FWI velocity with L-BFGS $modeling_type: $(frq*1000)Hz, iter $count",
             colormap=cgrad(:Spectral, rev=true),
             h5file=dir_out * model_file_out * " " * string(count) * ".h5",
             h5openflag="r+",
             h5varname="v")
-    save_data(x,y,z,permutedims(reshape(gradient.data,size(model0)), [3,2,1]); 
+    save_data(x,y,z,reshape(gradient.data,size(model0)); 
             pltfile=dir_out * "Gradient $count",
             title="FWI gradient with L-BFGS $modeling_type: $(frq*1000)Hz, iter $count",
             clim=(-maximum(gradient.data)/5f0, maximum(gradient.data)/5f0),
